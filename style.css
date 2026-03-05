@@ -2216,10 +2216,10 @@ section {
     }
 
     .certificates-header h2 {
-        font-size: 1.8rem !important;
+        font-size: 1.5rem !important;
         white-space: normal !important;
-        /* Разрешаем перенос текста */
-        line-height: 1.3 !important;
+        line-height: 1.2 !important;
+        word-wrap: break-word;
     }
 
     .certificates-header .line {
@@ -2234,6 +2234,21 @@ section {
 
     .cert-card {
         padding: 25px !important;
+    }
+
+    .timeline-container {
+        padding-left: 45px !important;
+        /* Уменьшенный отступ для маркеров */
+    }
+
+    .timeline-line {
+        left: 9px !important;
+        /* Смещаем линию влево как просили */
+    }
+
+    .timeline-container .mt-24 {
+        margin-left: 0 !important;
+        width: 100% !important;
     }
 
     /* Portfolio Section */
@@ -2320,6 +2335,11 @@ section {
     header nav ul li a {
         font-size: 0.6rem;
         letter-spacing: 0;
+    }
+
+    .certificates-header h2 {
+        font-size: 1.5rem !important;
+        /* Еще меньше для совсем маленьких экранов */
     }
 
     .h1 {
