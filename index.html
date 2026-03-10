@@ -457,18 +457,23 @@
                         </div>
                         <div class="form-group">
                             <label>Категория</label>
-                            <select id="projCategory">
-                                <option value="web">Веб-разработка</option>
-                                <option value="design">UI/UX Дизайн</option>
-                                <option value="branding">Брендинг</option>
-                                <option value="ecommerce">E-Commerce</option>
-                                <option value="graphic">Графический дизайн</option>
-                            </select>
+                            <div class="checkbox-group" id="projCategory">
+                                <label class="checkbox-label"><input type="checkbox" value="web"> Веб-разработка</label>
+                                <label class="checkbox-label"><input type="checkbox" value="design"> UI/UX
+                                    Дизайн</label>
+                                <label class="checkbox-label"><input type="checkbox" value="branding"> Брендинг</label>
+                                <label class="checkbox-label"><input type="checkbox" value="ecommerce">
+                                    E-Commerce</label>
+                                <label class="checkbox-label"><input type="checkbox" value="graphic"> Графический
+                                    дизайн</label>
+                            </div>
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>Ссылка на изображение (URL)</label>
-                        <input type="url" id="projImage" placeholder="https://example.com/image.jpg" required>
+                        <label>Ссылка на изображения (URL, через запятую)</label>
+                        <textarea rows="3" id="projImage"
+                            placeholder="https://example.com/img1.jpg, https://example.com/img2.jpg"
+                            required></textarea>
                     </div>
                     <div class="form-group" style="grid-column: span 2;">
                         <label>Текст категории (карточка)</label>
@@ -734,26 +739,130 @@
         // Функция рендера (теперь работает с данными из облака)
         function renderPortfolio() {
             const grid = document.getElementById('portfolioGrid');
-            const filtered = currentFilter === 'all' ? allProjects : allProjects.filter(p => p.category === currentFilter);
+            const filtered = currentFilter === 'all'
+                ? allProjects
+                : allProjects.filter(p => p.categories && p.categories.includes(currentFilter));
 
             grid.innerHTML = filtered.map(p => {
+                // Поддержка старых проектов, где была только 'category'
+                const catStr = p.categories ? p.categories.join(',') : (p.category || '');
+
+                // Поддержка и одного фото (строка), и нескольких (массив)
+                let imageElements = '';
+                let images = [];
+                if (Array.isArray(p.image)) {
+                    images = p.image;
+                } else if (p.image) {
+                    images = [p.image];
+                }
+
+                if (images.length > 0) {
+                    // Страницы нужно располагать в правильном z-index, 
+                    // чтобы первая картинка была сверху, 
+                    // а последние под ней.
+                    imageElements = images.map((imgUrl, index) => {
+                        const zIndex = images.length - index;
+                        return `<div class="book-page" style="background-image: url('${imgUrl}'); z-index: ${zIndex};"></div>`;
+                    }).join('');
+                } else {
+                    imageElements = `<div class="book-page" style="background-color: #2a2a2a; z-index: 1;"></div>`;
+                }
+
                 return `
-                <div class="new-project-card" data-category="${p.category}">
-                    <div class="project-bg" style="background-image: url('${p.image}');"></div>
-                    <div class="project-content">
-                        ${isAdmin ? `
-                        <div class="admin-card-controls">
-                            <button class="card-ctrl-btn edit" onclick="editProject('${p.id}')" title="Редактировать"><span class="material-symbols-outlined">edit</span></button>
-                            <button class="card-ctrl-btn delete" onclick="deleteProject('${p.id}')" title="Удалить"><span class="material-symbols-outlined">delete</span></button>
-                        </div>` : ''}
-                        <div class="project-text">
-                            <span class="p-category">${p.categoryLabel}</span>
-                            <h3 class="p-title">${p.title}</h3>
+                <div class="new-project-card" data-category="${catStr}" onclick="this.classList.toggle('flipped-card')">
+                    <div class="card-inner">
+                        <!-- Лицевая сторона: только картинка/слайд-шоу -->
+                        <div class="card-front">
+                            <div class="project-slider">
+                                ${imageElements}
+                            </div>
+                        </div>
+                        
+                        <!-- Обратная сторона: заголовок, категория, кнопки -->
+                        <div class="card-back">
+                            <div class="project-content">
+                                ${isAdmin ? `
+                                <div class="admin-card-controls" style="pointer-events: auto;">
+                                    <!-- stopPropagation чтобы клик по кнопке не переворачивал карточку снова -->
+                                    <button class="card-ctrl-btn edit" onclick="event.stopPropagation(); editProject('${p.id}')" title="Редактировать"><span class="material-symbols-outlined">edit</span></button>
+                                    <button class="card-ctrl-btn delete" onclick="event.stopPropagation(); deleteProject('${p.id}')" title="Удалить"><span class="material-symbols-outlined">delete</span></button>
+                                </div>` : ''}
+                                <div class="project-text">
+                                    <span class="p-category">${p.categoryLabel || ''}</span>
+                                    <h3 class="p-title">${p.title}</h3>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 `;
             }).join('');
+
+            // Инициализация обработчиков слайд-шоу после каждого рендера
+            initSlideshows();
+        }
+
+        // Логика слайд-шоу - эффект перелистывания книги (поддержка моб. устройств)
+        function initSlideshows() {
+            const cards = document.querySelectorAll('.new-project-card');
+            const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia("(pointer: coarse)").matches);
+
+            if (isTouchDevice) {
+                // Для мобильных устройств: запускаем анимацию когда карточка на экране
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            startSlideshow(entry.target);
+                        } else {
+                            stopSlideshow(entry.target);
+                        }
+                    });
+                }, { threshold: 0.6 }); // Срабатывает когда видно 60% карточки
+
+                cards.forEach(card => observer.observe(card));
+            } else {
+                // Для ПК: по наведению мыши
+                cards.forEach(card => {
+                    card.addEventListener('mouseenter', () => startSlideshow(card));
+                    card.addEventListener('mouseleave', () => stopSlideshow(card));
+                });
+            }
+
+            function startSlideshow(card) {
+                if (card.dataset.slideInterval) return; // Уже запущен
+
+                const pages = card.querySelectorAll('.book-page');
+                if (pages.length <= 1) return;
+
+                let currentPage = 0;
+                card.dataset.slideInterval = setInterval(() => {
+                    // Пауза, если карточка перевернута спиной (пользователь читает текст)
+                    if (card.classList.contains('flipped-card')) return;
+
+                    // Переворачиваем текущую страницу
+                    pages[currentPage].classList.add('flipped');
+                    currentPage++;
+
+                    // Если дошли до конца (оставляя последнюю страницу)
+                    if (currentPage >= pages.length - 1) {
+                        setTimeout(() => {
+                            if (!card.classList.contains('flipped-card')) {
+                                pages.forEach(p => p.classList.remove('flipped'));
+                                currentPage = 0;
+                            }
+                        }, 1500);
+                    }
+                }, 1500);
+            }
+
+            function stopSlideshow(card) {
+                if (card.dataset.slideInterval) {
+                    clearInterval(card.dataset.slideInterval);
+                    delete card.dataset.slideInterval;
+                }
+                const pages = card.querySelectorAll('.book-page');
+                pages.forEach(p => p.classList.remove('flipped'));
+            }
         }
 
         // РЕАЛЬНОЕ ВРЕМЯ: Слушаем изменения в базе
@@ -780,9 +889,22 @@
             document.getElementById('editorTitle').textContent = 'Редактировать проект';
             document.getElementById('projEditId').value = project.id;
             document.getElementById('projTitle').value = project.title;
-            document.getElementById('projCategory').value = project.category;
-            document.getElementById('projCategoryLabel').value = project.categoryLabel;
-            document.getElementById('projImage').value = project.image;
+
+            // Заполнение чекбоксов
+            const checkboxes = document.querySelectorAll('#projCategory input[type="checkbox"]');
+            checkboxes.forEach(cb => {
+                cb.checked = project.categories ? project.categories.includes(cb.value) : (project.category === cb.value);
+            });
+
+            document.getElementById('projCategoryLabel').value = project.categoryLabel || '';
+
+            // Преобразование массива картинок обратно в строку с запятыми для редактирования
+            if (Array.isArray(project.image)) {
+                document.getElementById('projImage').value = project.image.join(', ');
+            } else {
+                document.getElementById('projImage').value = project.image || '';
+            }
+
             document.getElementById('projectEditorModal').style.display = 'flex';
         };
 
@@ -842,6 +964,8 @@
         document.getElementById('addProjectBtn').addEventListener('click', function () {
             document.getElementById('editorTitle').textContent = 'Добавить проект';
             document.getElementById('projectForm').reset();
+            const checkboxes = document.querySelectorAll('#projCategory input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = false);
             document.getElementById('projEditId').value = '';
             document.getElementById('projectEditorModal').style.display = 'flex';
         });
@@ -849,12 +973,31 @@
         document.getElementById('projectForm').addEventListener('submit', async function (e) {
             e.preventDefault();
             const editId = document.getElementById('projEditId').value;
+
+            const selectedCategories = [];
+            document.querySelectorAll('#projCategory input[type="checkbox"]:checked').forEach(cb => {
+                selectedCategories.push(cb.value);
+            });
+
+            // Fallback for empty label
+            let displayLabel = document.getElementById('projCategoryLabel').value;
+            if (!displayLabel && selectedCategories.length > 0) {
+                const firstChecked = document.querySelector(`#projCategory input[value="${selectedCategories[0]}"]`);
+                displayLabel = firstChecked ? firstChecked.parentElement.textContent.trim() : '';
+            }
+
+            // Преобразование строки введенных url-ов в массив
+            const imageInput = document.getElementById('projImage').value;
+            const imageArray = imageInput.split(',')
+                .map(url => url.trim())
+                .filter(url => url.length > 0);
+
             const project = {
                 id: editId || 'p_' + Date.now(),
                 title: document.getElementById('projTitle').value,
-                category: document.getElementById('projCategory').value,
-                categoryLabel: document.getElementById('projCategoryLabel').value || document.getElementById('projCategory').selectedOptions[0].text,
-                image: document.getElementById('projImage').value,
+                categories: selectedCategories,
+                categoryLabel: displayLabel,
+                image: imageArray, // Сохраняем как массив
                 timestamp: Date.now()
             };
 
