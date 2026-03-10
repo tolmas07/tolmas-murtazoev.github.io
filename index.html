@@ -731,7 +731,6 @@
         const db = getDatabase(app);
         const projectsRef = ref(db, 'projects');
 
-        const ADMIN_PASSWORD = 'admin123';
         let currentFilter = 'all';
         let isAdmin = sessionStorage.getItem('isAdmin') === 'true';
         let allProjects = [];
@@ -939,9 +938,19 @@
             }
         });
 
-        document.getElementById('loginSubmitBtn').addEventListener('click', function () {
+        document.getElementById('loginSubmitBtn').addEventListener('click', async function () {
             const pwd = document.getElementById('adminPassword').value;
-            if (pwd === ADMIN_PASSWORD) {
+
+            // Базовая защита: пароль не хранится в открытом виде, вместо него сверяется хэш SHA-256
+            const msgBuffer = new TextEncoder().encode(pwd);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+            // Хэш пароля "Samsungj5"
+            const TARGET_HASH = "38ca06a931651c283fb472c1693f8560ddc33c14f4b22cea34f6528199a1cdd1";
+
+            if (hashHex === TARGET_HASH) {
                 isAdmin = true;
                 sessionStorage.setItem('isAdmin', 'true');
                 window.closeModal('adminLoginModal');
